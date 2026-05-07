@@ -2,8 +2,8 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>江西傩面具“开山” - 数字典藏版</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>江西傩面具“开山” - 双模分工典藏版</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;600;700&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
@@ -31,42 +31,44 @@
     </script>
 
     <style>
-        body { margin: 0; overflow: hidden; background-color: #000000; }
+        /* 移动端防双击放大、防弹性滚动 */
+        body { margin: 0; overflow: hidden; background-color: #000000; touch-action: none; -webkit-touch-callout: none; }
         
         #bg-container { position: absolute; inset: 0; background-color: #000; z-index: 1; }
+        /* 镜像画面，并保持比例拉伸覆盖全屏 */
         #webcam { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); transition: opacity 0.5s ease; filter: grayscale(20%) contrast(1.2); }
         
-        /* 极简博物馆暗角 */
         #vignette { position: absolute; inset: 0; z-index: 1; pointer-events: none; background: radial-gradient(circle at center, transparent 20%, rgba(0,0,0,0.95) 100%); }
 
-        #three-canvas { position: absolute; inset: 0; z-index: 2; outline: none; }
-        #ui-layer { position: absolute; inset: 0; z-index: 3; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 2.5rem; }
+        #three-canvas { position: absolute; inset: 0; z-index: 2; outline: none; touch-action: none; }
+        
+        /* 移动端紧凑内边距 */
+        #ui-layer { position: absolute; inset: 0; z-index: 3; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 1rem; }
+        @media (min-width: 768px) { #ui-layer { padding: 2.5rem; } }
+        
         .interactive-ui { pointer-events: auto; }
         
-        /* 博物馆展牌风面板基类 */
         .museum-panel {
             background: rgba(0, 0, 0, 0.6);
             backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
             border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 1rem;
         }
 
-        /* 优雅细线滑块 */
         input[type=range] { -webkit-appearance: none; background: transparent; height: 1px; }
         input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none; height: 10px; width: 10px; border-radius: 50%;
-            background: #fde68a; cursor: pointer; margin-top: -4px;
-            box-shadow: 0 0 8px rgba(253, 230, 138, 0.4);
+            -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%;
+            background: #fde68a; cursor: pointer; margin-top: -7px;
+            box-shadow: 0 0 10px rgba(253, 230, 138, 0.5);
             transition: transform 0.2s ease;
         }
         input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.4); }
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 1px; cursor: pointer; background: rgba(255, 255, 255, 0.2); }
 
-        /* 平滑折叠动画 */
         #info-card { transition: max-height 0.8s cubic-bezier(0.25, 1, 0.5, 1); overflow: hidden; }
         #info-content { transition: opacity 0.5s ease, transform 0.6s cubic-bezier(0.25, 1, 0.5, 1); transform-origin: top; }
 
-        /* Loading */
         #loading { position: absolute; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #000000; transition: opacity 1s ease; }
         .pulse-ring { width: 40px; height: 40px; border: 1px solid rgba(253, 230, 138, 0.3); border-radius: 50%; animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; margin-bottom: 2rem; }
         @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .1; transform: scale(1.5); } }
@@ -75,94 +77,97 @@
 <body class="text-gray-200 selection:bg-amber-900/50 selection:text-amber-100">
 
     <div id="bg-container">
-        <video id="webcam" autoplay playsinline></video>
+        <!-- 【修复核心1】：增加 muted 属性，解决 iOS/移动端浏览器无法自动拉起摄像头的策略限制 -->
+        <video id="webcam" autoplay playsinline muted></video>
         <div id="vignette"></div>
     </div>
 
+    <!-- 沉浸式博物馆启动屏 -->
     <div id="loading">
         <div class="pulse-ring"></div>
         <div class="font-serif text-lg tracking-[0.4em] text-amber-100/90 mb-2">正在提取数字藏品</div>
         <div id="loading-text" class="text-xs text-white/40 font-sans tracking-widest">LOADING ARTIFACT DATA...</div>
-        <div id="error-msg" class="text-red-400 mt-6 text-sm max-w-md text-center font-sans tracking-wide"></div>
+        <div id="error-msg" class="text-red-400 mt-6 text-sm max-w-md text-center font-sans tracking-wide px-4"></div>
     </div>
 
     <canvas id="three-canvas"></canvas>
 
     <div id="ui-layer">
-        <div class="flex justify-between items-start w-full pointer-events-none">
+        <div class="flex flex-col md:flex-row justify-between items-start w-full pointer-events-none gap-3">
             
-            <div class="flex flex-col gap-4 pointer-events-auto">
+            <!-- 左上角：典雅标题签 -->
+            <div class="flex flex-col gap-2 md:gap-4 pointer-events-auto w-full md:w-auto">
                 <div class="px-2">
-                    <h1 class="font-serif text-3xl md:text-4xl text-amber-100/90 tracking-[0.2em] font-light mb-1">开山</h1>
+                    <h1 class="font-serif text-3xl md:text-4xl text-amber-100/90 tracking-[0.2em] font-light mb-1 drop-shadow-md">开山</h1>
                     <div class="flex items-center gap-3">
                         <div class="h-px w-6 bg-amber-200/50"></div>
-                        <p class="font-sans text-[10px] text-white/50 tracking-[0.3em]">江西傩文化 / 数字全息藏品</p>
+                        <p class="font-sans text-[10px] text-white/70 tracking-[0.3em] drop-shadow-md">江西傩文化 / 数字藏品</p>
                     </div>
                 </div>
 
-                <div id="status-badge" class="flex items-center gap-2.5 px-2 opacity-60 transition-opacity duration-1000">
-                    <div class="w-1.5 h-1.5 rounded-full bg-amber-200 animate-pulse"></div>
-                    <span id="status-text" class="font-sans text-[10px] text-amber-100/60 tracking-[0.1em] uppercase">初始化视觉交互...</span>
+                <div id="status-badge" class="flex items-center gap-2.5 px-2 opacity-80 transition-opacity duration-1000 bg-black/30 w-max py-1 rounded-full md:bg-transparent md:p-0">
+                    <div class="w-1.5 h-1.5 rounded-full bg-amber-200 animate-pulse ml-1 md:ml-0"></div>
+                    <span id="status-text" class="font-sans text-[10px] text-amber-100/80 tracking-[0.1em] uppercase pr-2 md:pr-0">系统启动中...</span>
                 </div>
             </div>
 
-            <div id="info-card" class="interactive-ui museum-panel p-1 w-[280px] shadow-2xl flex flex-col" style="max-height: 500px;">
-                <div id="toggle-info-btn" class="px-5 py-4 flex justify-between items-center cursor-pointer hover:bg-white/5 transition-colors border-b border-transparent">
-                    <h2 class="font-serif text-xs font-medium tracking-[0.2em] text-amber-100/80">交互导览</h2>
-                    <svg id="toggle-icon" class="w-3.5 h-3.5 text-white/40 transition-transform duration-700 transform rotate-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 9l-7 7-7-7"></path></svg>
+            <!-- 右上角：导览牌 (移动端紧凑布局) -->
+            <div id="info-card" class="interactive-ui museum-panel p-1 w-full md:w-[280px] self-end md:self-auto shadow-2xl flex flex-col" style="max-height: 500px;">
+                <div id="toggle-info-btn" class="px-4 py-3 md:px-5 md:py-4 flex justify-between items-center cursor-pointer hover:bg-white/5 transition-colors border-b border-transparent">
+                    <h2 class="font-serif text-xs font-medium tracking-[0.2em] text-amber-100/80">交互导览指南</h2>
+                    <svg id="toggle-icon" class="w-4 h-4 text-white/60 transition-transform duration-700 transform rotate-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 9l-7 7-7-7"></path></svg>
                 </div>
                 
-                <div id="info-content" class="px-5 pb-6 opacity-100 transform translate-y-0">
-                    <p class="text-[11px] text-white/40 leading-loose mb-5 font-sans font-light tracking-wide text-justify">
-                        本展品采用三维空间光学追踪，支持手势及传统光标操作。请于下方展台选择控制模式。
+                <div id="info-content" class="px-4 pb-4 md:px-5 md:pb-6 opacity-100 transform translate-y-0">
+                    <p class="text-[10px] md:text-[11px] text-white/50 leading-loose mb-3 md:mb-5 font-sans font-light tracking-wide text-justify">
+                        本展品支持移动端前置镜头三维空间手势追踪。请将设备稍微拿远，确保手掌完整入镜。
                     </p>
                     
-                    <div class="space-y-4 font-sans text-[11px] tracking-widest font-light">
-                        <div class="border-t border-white/10 pt-4">
-                            <div class="text-[9px] text-amber-200/50 mb-2 uppercase">手势交互 Gesture</div>
-                            <div class="space-y-2.5 ml-1">
-                                <div class="flex justify-between items-center"><span class="text-white/40">单手张开</span><span class="text-white/80">藏品旋转</span></div>
-                                <div class="flex justify-between items-center"><span class="text-white/40">捏合拖动</span><span class="text-white/80">空间平移</span></div>
-                                <div class="flex justify-between items-center"><span class="text-white/40">单手捏合</span><span class="text-amber-200/80">解构形态</span></div>
-                                <div class="flex justify-between items-center"><span class="text-white/40">双手开合</span><span class="text-white/80">调节缩放</span></div>
+                    <div class="space-y-3 font-sans text-[10px] md:text-[11px] tracking-widest font-light">
+                        <div class="border-t border-white/10 pt-3">
+                            <div class="text-[9px] text-amber-200/60 mb-1.5 uppercase font-medium">双手分工 Gesture</div>
+                            <div class="space-y-2 ml-1">
+                                <div class="flex justify-between items-center"><span class="text-white/50">右掌张开</span><span class="text-white/90 drop-shadow">空间平移</span></div>
+                                <div class="flex justify-between items-center"><span class="text-white/50">左掌张开</span><span class="text-white/90 drop-shadow">三维旋转</span></div>
+                                <div class="flex justify-between items-center"><span class="text-white/50">单次捏合</span><span class="text-amber-200/90 font-medium">切换颜色</span></div>
+                                <div class="flex justify-between items-center"><span class="text-white/50">双手开合</span><span class="text-white/90 drop-shadow">调节缩放</span></div>
                             </div>
                         </div>
                         
-                        <div class="border-t border-white/10 pt-4">
-                            <div class="text-[9px] text-amber-200/50 mb-2 uppercase">鼠标交互 Mouse</div>
-                            <div class="space-y-2.5 ml-1">
-                                <div class="flex justify-between items-center"><span class="text-white/40">左键拖拽</span><span class="text-white/80">藏品旋转</span></div>
-                                <div class="flex justify-between items-center"><span class="text-white/40">滚轮缩放</span><span class="text-white/80">调节缩放</span></div>
-                                <div class="flex justify-between items-center"><span class="text-white/40">画面双击</span><span class="text-amber-200/80">解构形态</span></div>
+                        <div class="border-t border-white/10 pt-3">
+                            <div class="text-[9px] text-amber-200/60 mb-1.5 uppercase font-medium">触控/鼠标 Touch</div>
+                            <div class="space-y-2 ml-1">
+                                <div class="flex justify-between items-center"><span class="text-white/50">单指滑动</span><span class="text-white/90 drop-shadow">藏品旋转</span></div>
+                                <div class="flex justify-between items-center"><span class="text-white/50">双指捏合</span><span class="text-white/90 drop-shadow">调节大小</span></div>
+                                <div class="flex justify-between items-center"><span class="text-white/50">双击屏幕</span><span class="text-amber-200/90 font-medium">切换颜色</span></div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-            
         </div>
 
+        <!-- 底部控制 -->
         <div class="interactive-ui flex justify-center w-full">
-            <div class="museum-panel px-4 py-2 flex flex-col md:flex-row items-center gap-6">
+            <div class="museum-panel p-2.5 md:px-4 md:py-2 flex flex-col md:flex-row items-center gap-3 md:gap-6 w-full sm:w-auto rounded-xl md:rounded-full">
                 
-                <div class="flex items-center gap-1">
-                    <button id="mode-gesture" class="px-5 py-2 rounded-full text-xs font-sans tracking-[0.1em] border border-amber-200/40 text-amber-200 bg-amber-900/20 transition-all duration-300">
-                        光学手势
+                <div class="flex items-center gap-2 w-full md:w-auto">
+                    <button id="mode-gesture" class="flex-1 md:flex-none px-2 py-2.5 md:px-5 md:py-2 rounded-lg md:rounded-full text-[11px] md:text-xs font-sans tracking-[0.1em] border border-amber-200/40 text-amber-200 bg-amber-900/30 transition-all duration-300">
+                        前置手势
                     </button>
-                    <button id="mode-mouse" class="px-5 py-2 rounded-full text-xs font-sans tracking-[0.1em] text-white/30 hover:text-white/70 transition-all duration-300 border border-transparent">
-                        鼠标操作
+                    <button id="mode-mouse" class="flex-1 md:flex-none px-2 py-2.5 md:px-5 md:py-2 rounded-lg md:rounded-full text-[11px] md:text-xs font-sans tracking-[0.1em] text-white/50 hover:text-white/90 transition-all duration-300 border border-transparent bg-white/5 md:bg-transparent">
+                        屏幕触控
                     </button>
                 </div>
 
-                <div class="hidden md:block w-px h-6 bg-white/10"></div>
+                <div class="hidden md:block w-px h-6 bg-white/20"></div>
 
-                <div class="flex items-center gap-4 px-2">
-                    <span class="font-serif text-[10px] text-white/40 tracking-widest uppercase">背景透射</span>
-                    <div class="w-32 md:w-40">
+                <div class="flex items-center justify-between md:justify-start gap-4 px-2 w-full md:w-auto mt-1 md:mt-0">
+                    <span class="font-serif text-[10px] text-white/50 tracking-widest uppercase">实景透射</span>
+                    <div class="flex-1 md:w-32">
                         <input type="range" id="opacity-slider" min="0" max="1" step="0.05" value="0.3">
                     </div>
                 </div>
-
             </div>
         </div>
     </div>
@@ -182,37 +187,43 @@
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
         // ==========================================
-        // UI 交互与面板折叠逻辑
+        // UI 交互与移动端自适应折叠
         // ==========================================
         const infoCard = document.getElementById('info-card');
         const infoContent = document.getElementById('info-content');
         const toggleIcon = document.getElementById('toggle-icon');
         const toggleBtn = document.getElementById('toggle-info-btn');
         let isCardOpen = true;
+        
+        // 移动端判断：屏幕宽度小于768px
+        const isMobile = window.innerWidth < 768;
 
-        toggleBtn.addEventListener('click', () => {
+        function toggleCardState() {
             isCardOpen = !isCardOpen;
             if (isCardOpen) {
                 infoContent.style.opacity = '1';
                 infoContent.style.transform = 'translateY(0)';
-                infoCard.style.maxHeight = '500px';
+                infoCard.style.maxHeight = isMobile ? '400px' : '500px';
                 toggleBtn.classList.remove('border-white/10');
                 toggleBtn.classList.add('border-transparent');
                 toggleIcon.style.transform = 'rotate(0deg)';
             } else {
                 infoContent.style.opacity = '0';
                 infoContent.style.transform = 'translateY(-10px)';
-                infoCard.style.maxHeight = '53px'; // Header
+                infoCard.style.maxHeight = isMobile ? '46px' : '52px';
                 toggleBtn.classList.remove('border-transparent');
                 toggleBtn.classList.add('border-white/10');
                 toggleIcon.style.transform = 'rotate(180deg)';
             }
-        });
+        }
 
-        setTimeout(() => { if (isCardOpen) toggleBtn.click(); }, 6000);
+        toggleBtn.addEventListener('click', toggleCardState);
+
+        // 【移动端优化】：手机屏幕太小，加载完成后迅速自动折叠面板，让出视野
+        setTimeout(() => { if (isCardOpen) toggleCardState(); }, isMobile ? 3000 : 6000);
 
         // ==========================================
-        // 基础配置与变量
+        // 基础配置
         // ==========================================
         const MODEL_URL = 'https://cdn.jsdelivr.net/gh/189729021/-@main/nuo-v1.glb';
         const videoElement = document.getElementById('webcam');
@@ -241,7 +252,6 @@
         let introPhase = 0; 
         let introStartTime = 0;
 
-        // 主题顺序 (稍微改为了更内敛的颜色名称逻辑)
         const THEMES = [
             { type: 'particle_original' },              
             { type: 'particle_pure', hex: 0xffffff },   
@@ -253,26 +263,26 @@
         
         let lastPinchTime = 0;
         let wasPinching = false;
-        let isDragging = false;
-        let pinchStartTime = 0;
+        let rightHandWasOpen = false;
+        let lastHandPos = { x: 0, y: 0 };
 
         const lerp = (start, end, factor) => start + (end - start) * factor;
 
-        const updateStatus = (msg, state = 'normal') => {
+        const updateStatus = (msg, isError = false) => {
             statusText.textContent = msg;
             const dot = statusBadge.querySelector('div');
             statusBadge.style.opacity = '1';
             
-            if(state === 'error') {
+            if(isError) {
                 dot.className = 'w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_5px_#ef4444]';
-                statusText.className = 'font-sans text-[10px] text-red-300 tracking-[0.1em] uppercase';
-            } else if (state === 'active') {
+                statusText.className = 'font-sans text-[10px] text-red-300 tracking-[0.1em] uppercase pr-2 md:pr-0';
+            } else if (controlMode === 'gesture') {
                 dot.className = 'w-1.5 h-1.5 rounded-full bg-amber-200 animate-pulse shadow-[0_0_5px_#fde68a]';
-                statusText.className = 'font-sans text-[10px] text-amber-100/80 tracking-[0.1em] uppercase';
-                setTimeout(() => statusBadge.style.opacity = '0.3', 4000);
+                statusText.className = 'font-sans text-[10px] text-amber-100/90 tracking-[0.1em] uppercase pr-2 md:pr-0';
+                setTimeout(() => statusBadge.style.opacity = '0.5', 3000);
             } else {
-                dot.className = 'w-1.5 h-1.5 rounded-full bg-white/50';
-                statusText.className = 'font-sans text-[10px] text-white/50 tracking-[0.1em] uppercase';
+                dot.className = 'w-1.5 h-1.5 rounded-full bg-white/70';
+                statusText.className = 'font-sans text-[10px] text-white/70 tracking-[0.1em] uppercase pr-2 md:pr-0';
             }
         };
 
@@ -304,13 +314,12 @@
                     pMat.needsUpdate = true;
                 }
             });
-
             targetScale = 0.6; 
             setTimeout(()=> { targetScale = 1.0 }, 150);
         }
 
         // ==========================================
-        // Three.js 场景与控制配置
+        // Three.js 场景与兼容控制
         // ==========================================
         const scene = new THREE.Scene();
         const renderer = new THREE.WebGLRenderer({ canvas: canvasElement, antialias: true, alpha: true });
@@ -331,73 +340,63 @@
         controls.maxDistance = 30;
         controls.enablePan = false;
 
-        // ==========================================
-        // 模式切换系统逻辑
-        // ==========================================
+        // 【移动端修复】：PC端双击与移动端单指连续点击的兼顾
+        canvasElement.addEventListener('dblclick', () => {
+            if (controlMode === 'mouse' && introPhase === 3) triggerThemeSwitch();
+        });
+        
+        let lastTapTime = 0;
+        canvasElement.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) { 
+                const currentTime = Date.now();
+                const tapLength = currentTime - lastTapTime;
+                if (tapLength > 0 && tapLength < 300) { 
+                    if (controlMode === 'mouse' && introPhase === 3) triggerThemeSwitch();
+                    e.preventDefault();
+                }
+                lastTapTime = currentTime;
+            }
+        }, { passive: false });
+
+        // 按钮切换逻辑
         const btnGesture = document.getElementById('mode-gesture');
         const btnMouse = document.getElementById('mode-mouse');
-        const defaultBtnClass = "px-5 py-2 rounded-full text-xs font-sans tracking-[0.1em] text-white/30 hover:text-white/70 transition-all duration-300 border border-transparent";
-        const activeBtnClass = "px-5 py-2 rounded-full text-xs font-sans tracking-[0.1em] border border-amber-200/40 text-amber-200 bg-amber-900/20 transition-all duration-300";
-
+        
+        // 分别定义响应式激活样式
+        const gestureActive = "flex-1 md:flex-none px-2 py-2.5 md:px-5 md:py-2 rounded-lg md:rounded-full text-[11px] md:text-xs font-sans tracking-[0.1em] border border-amber-200/40 text-amber-200 bg-amber-900/30 transition-all duration-300";
+        const gestureIdle = "flex-1 md:flex-none px-2 py-2.5 md:px-5 md:py-2 rounded-lg md:rounded-full text-[11px] md:text-xs font-sans tracking-[0.1em] text-white/50 hover:text-white/90 transition-all duration-300 border border-transparent bg-white/5 md:bg-transparent";
+        
         function setControlMode(mode) {
             controlMode = mode;
             if (mode === 'mouse') {
-                btnGesture.className = defaultBtnClass;
-                btnMouse.className = activeBtnClass;
+                btnGesture.className = gestureIdle;
+                btnMouse.className = gestureActive;
                 
                 controls.enabled = true;
                 targetRotation = { x: 0, y: 0 };
                 targetPosition = { x: 0, y: baseYOffset, z: 0 };
                 targetScale = 1.0;
                 
-                updateStatus("鼠标操作已接管", 'active');
+                updateStatus("屏幕触控已接管", false);
             } else {
-                btnMouse.className = defaultBtnClass;
-                btnGesture.className = activeBtnClass;
+                btnMouse.className = gestureIdle;
+                btnGesture.className = gestureActive;
                 
                 controls.enabled = false;
                 camera.position.set(0, 0, 15);
                 camera.lookAt(0, 0, 0);
                 controls.target.set(0, 0, 0);
                 
-                updateStatus("光学手势追踪运行中", 'active');
+                updateStatus("前置光学追踪中", false);
             }
         }
 
         btnGesture.addEventListener('click', () => setControlMode('gesture'));
         btnMouse.addEventListener('click', () => setControlMode('mouse'));
 
-        canvasElement.addEventListener('dblclick', () => {
-            if (controlMode === 'mouse' && introPhase === 3) triggerThemeSwitch();
-        });
-
-        // 鼠标视差
-        let mouseTimeout = null;
-        let isMouseMoving = false;
-        window.addEventListener('mousemove', (e) => {
-            if (controlMode === 'gesture' && introPhase === 3 && targetRotation.x === 0 && targetRotation.y === 0) {
-                isMouseMoving = true;
-                const mouseX = (e.clientX / window.innerWidth) * 2 - 1;
-                const mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
-                
-                targetPosition.x = mouseX * 1.0; // 减弱视差幅度，更稳重
-                targetPosition.y = baseYOffset + mouseY * 1.0;
-                targetRotation.x = -mouseY * 0.1;
-                targetRotation.y = mouseX * 0.1;
-
-                clearTimeout(mouseTimeout);
-                mouseTimeout = setTimeout(() => {
-                    isMouseMoving = false;
-                    targetPosition.x = 0; targetPosition.y = baseYOffset;
-                    targetRotation.x = 0; targetRotation.y = 0;
-                }, 1000);
-            }
-        });
-
-        // 【方案二修改点】：光影调整为聚光灯风格
-        const ambientLight = new THREE.AmbientLight(0xfff4e6, 0.4); // 降低环境光，色温偏暖
+        const ambientLight = new THREE.AmbientLight(0xfff4e6, 0.4); 
         scene.add(ambientLight);
-        const directionalLight = new THREE.DirectionalLight(0xffeedd, 2.0); // 增强斜向顶光，模拟聚光灯
+        const directionalLight = new THREE.DirectionalLight(0xffeedd, 2.0); 
         directionalLight.position.set(5, 12, 6);
         scene.add(directionalLight);
         scene.add(maskGroup); 
@@ -453,7 +452,8 @@
                 model.position.z -= center.z;
 
                 const maxDim = Math.max(size.x, size.y, size.z);
-                const targetSize = 10;
+                // 【移动端适配】：如果在小屏幕上，模型稍微缩小一点以适应竖屏视野
+                const targetSize = isMobile ? 8 : 10;
                 const scaleFactor = maxDim === 0 ? 1 : targetSize / maxDim;
                 
                 model.scale.set(scaleFactor, scaleFactor, scaleFactor);
@@ -468,13 +468,13 @@
                 setTimeout(() => loadingEl.style.display = 'none', 1000);
                 
                 introPhase = 1;
-                updateStatus("视觉模块就绪");
+                updateStatus("视觉模块加载就绪");
                 initMediaPipe();
 
             } catch(err) {
                 showError("数据解析异常: " + err.message);
             }
-        }, undefined, (err) => { showError("无法获取藏品数据源。"); });
+        }, undefined, (err) => { showError("请检查网络。"); });
 
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
@@ -483,7 +483,7 @@
         });
 
         // ==========================================
-        // MediaPipe 初始化
+        // MediaPipe 初始化与移动端摄像头适配
         // ==========================================
         function initMediaPipe() {
             try {
@@ -503,9 +503,12 @@
                             
                             targetRotation.x = 0; targetRotation.y = 0;
                             targetPosition.x = 0; targetPosition.y = baseYOffset;
+                            rightHandWasOpen = false;
                         } 
                         else if (detectedHands.length === 1) {
                             const hand = detectedHands[0];
+                            const isRightHand = results.multiHandedness[0].label === 'Left';
+
                             const visualX = 1.0 - hand[9].x;
                             const visualY = hand[9].y;
 
@@ -514,51 +517,57 @@
 
                             if (isPinching) {
                                 if (!wasPinching) {
-                                    pinchStartTime = Date.now();
-                                    isDragging = false;
-                                } else {
-                                    if (Date.now() - pinchStartTime > 150) {
-                                        isDragging = true;
-                                        targetPosition.x = (visualX - 0.5) * 12.0; 
-                                        targetPosition.y = baseYOffset - (visualY - 0.5) * 10.0;
-                                    }
+                                    lastPinchTime = Date.now();
                                 }
+                                rightHandWasOpen = false; 
                             } else {
                                 if (wasPinching) {
-                                    if (!isDragging && (Date.now() - pinchStartTime < 400)) {
-                                        if (introPhase === 3) triggerThemeSwitch();
+                                    if (introPhase === 3 && Date.now() - lastPinchTime < 500) {
+                                        triggerThemeSwitch();
                                     }
-                                    isDragging = false;
-                                    targetPosition.x = 0; targetPosition.y = baseYOffset;
                                 }
-                                targetRotation.y = (visualX - 0.5) * Math.PI; 
-                                targetRotation.x = (visualY - 0.5) * Math.PI * 0.8;
+                                
+                                if (isRightHand) {
+                                    if (!rightHandWasOpen) {
+                                        lastHandPos = { x: visualX, y: visualY };
+                                        rightHandWasOpen = true;
+                                    } else {
+                                        targetPosition.x += (visualX - lastHandPos.x) * 15.0;
+                                        targetPosition.y -= (visualY - lastHandPos.y) * 15.0; 
+                                        lastHandPos = { x: visualX, y: visualY };
+                                    }
+                                } else {
+                                    targetRotation.y = (visualX - 0.5) * Math.PI; 
+                                    targetRotation.x = (visualY - 0.5) * Math.PI * 0.8;
+                                    rightHandWasOpen = false;
+                                }
                             }
                             wasPinching = isPinching;
                         }
                     } else {
-                        if(!isMouseMoving) {
-                            targetRotation.x = 0; targetRotation.y = 0; targetScale = 1.0;
-                            targetPosition.x = 0; targetPosition.y = baseYOffset;
-                        }
-                        wasPinching = false; isDragging = false;
+                        targetRotation.x = 0; targetRotation.y = 0; targetScale = 1.0;
+                        targetPosition.x = 0; targetPosition.y = baseYOffset;
+                        wasPinching = false; rightHandWasOpen = false;
                     }
                 });
 
+                // 【修复核心2】：显式请求 facingMode: 'user' 保证移动端必定调用前置镜头
                 const cameraUtils = new window.Camera(videoElement, {
                     onFrame: async () => { await hands.send({image: videoElement}); },
-                    width: 640, height: 480 
+                    width: isMobile ? 480 : 640,  // 根据设备降低请求分辨率，提高帧率
+                    height: isMobile ? 640 : 480,
+                    facingMode: 'user' 
                 });
                 
                 cameraUtils.start().then(()=> {
-                    updateStatus("光学手势追踪运行中", 'active');
+                    updateStatus("前置手势追踪运行中");
                 }).catch(err => {
-                    updateStatus("相机未授权，已切换鼠标控制", 'error');
+                    updateStatus("相机未授权，已切换触控", true);
                     setControlMode('mouse'); 
                 });
 
             } catch (err) {
-                updateStatus("手势模块异常", 'error');
+                updateStatus("手势异常，已切换触控", true);
                 setControlMode('mouse');
             }
         }
@@ -587,9 +596,9 @@
 
             const time = clock.getElapsedTime();
 
-            if (controlMode === 'gesture' && !isDragging && targetScale === 1.0 && targetRotation.x === 0 && targetRotation.y === 0 && !isMouseMoving) {
+            if (controlMode === 'gesture' && !rightHandWasOpen && targetScale === 1.0 && targetRotation.x === 0 && targetRotation.y === 0) {
                 maskGroup.position.x = currentPosition.x;
-                maskGroup.position.y = currentPosition.y + Math.sin(time * 1.2) * 0.15; // 减弱浮动感，更沉稳
+                maskGroup.position.y = currentPosition.y + Math.sin(time * 1.2) * 0.15; 
                 maskGroup.position.z = currentPosition.z;
             } else {
                 maskGroup.position.set(currentPosition.x, currentPosition.y, currentPosition.z);
