@@ -3,29 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>傩面具 - AR数字明信片系列</title>
+    <title>傩面具 - AR数字明信片大厅</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/gh/aframevr/aframe@1.4.2/dist/aframe-master.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;600&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
+    
+    <!-- 稳定的 A-Frame 与 MindAR 引擎 -->
+    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
     <script>
-        tailwind.config = { theme: { extend: { colors: { amber: { 100: '#fef3c7', 200: '#fde68a', 900: '#78350f' } } } } }
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['"Noto Sans SC"', 'sans-serif'], serif: ['"Noto Serif SC"', 'serif'] },
+                    colors: { amber: { 100: '#fef3c7', 200: '#fde68a', 900: '#78350f' } }
+                }
+            }
+        }
 
-        // 参数化线稿材质组件
+        // 参数化线稿材质组件：为所有面具附加海报级“全息金线”特效
         AFRAME.registerComponent('ar-mask-effects', {
             init: function () {
                 this.el.addEventListener('model-loaded', () => {
                     const obj = this.el.getObject3D('mesh');
-                    obj.traverse((child) => {
-                        if (child.isMesh) {
-                            const edges = new THREE.EdgesGeometry(child.geometry, 30);
-                            const lineMat = new THREE.LineBasicMaterial({ color: 0xfde68a, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
-                            const lines = new THREE.LineSegments(edges, lineMat);
-                            child.add(lines);
-                            child.material.transparent = true; child.material.opacity = 0.8; child.material.color = new THREE.Color(0x111111);
-                        }
-                    });
+                    if(obj) {
+                        obj.traverse((child) => {
+                            if (child.isMesh) {
+                                const edges = new THREE.EdgesGeometry(child.geometry, 30);
+                                const lineMat = new THREE.LineBasicMaterial({ 
+                                    color: 0xfde68a, transparent: true, opacity: 0.9, 
+                                    blending: THREE.AdditiveBlending, depthWrite: false 
+                                });
+                                const lines = new THREE.LineSegments(edges, lineMat);
+                                child.add(lines);
+                                child.material.transparent = true; 
+                                child.material.opacity = 0.85; 
+                                child.material.color = new THREE.Color(0x050505); // 极暗底色突显金线
+                            }
+                        });
+                    }
                 });
             }
         });
@@ -34,77 +51,161 @@
             const enterBtn = document.querySelector('#enter-btn');
             const scanPrompt = document.querySelector('#scan-prompt');
             const scanBox = document.querySelector('#scan-box');
+            const loadingScreen = document.querySelector('#ar-loading');
+            const errorModal = document.querySelector('#error-modal');
+            const errorText = document.querySelector('#error-text');
             
-            // 当前要跳转的展厅链接
-            let currentMuseumUrl = "";
+            // 1. 底层安全环境预检 (HTTPS 校验)
+            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            if (!window.isSecureContext && !isLocalhost) {
+                showError("环境受限：由于浏览器安全策略，AR 扫描必须在安全的 HTTPS 网络下运行。<br><br>请将代码部署至 GitHub Pages 或使用有效的安全链接访问。");
+            }
 
-            // 配置 5 张明信片数据
+            function showError(msg) {
+                loadingScreen.style.display = 'none';
+                errorModal.classList.remove('hidden');
+                errorModal.classList.add('flex');
+                errorText.innerHTML = msg;
+                scanPrompt.style.display = 'none';
+                scanBox.style.display = 'none';
+            }
+
+            // 2. 监听 MindAR 引擎就绪状态与相机权限错误
+            const sceneEl = document.querySelector('a-scene');
+            sceneEl.addEventListener('arReady', () => {
+                loadingScreen.style.opacity = '0';
+                setTimeout(() => loadingScreen.style.display = 'none', 800);
+            });
+            sceneEl.addEventListener('arError', () => {
+                showError("相机启动失败！<br><br>请检查是否已在手机系统设置中，允许当前浏览器使用摄像头权限，然后刷新页面重试。");
+            });
+            
+            let currentMuseumUrl = "";
+            let lostTimeout = null; // 防闪烁计时器
+
+            // 3. 核心：最新对应顺序的 5 张明信片数据
             const cardsData = [
-                { id: 0, name: "开山", url: "https://189729021.github.io/NuoMask/museum-0.html" },
-                { id: 1, name: "金刚", url: "https://189729021.github.io/NuoMask/museum-1.html" },
-                { id: 2, name: "面具三", url: "https://189729021.github.io/NuoMask/museum-2.html" },
-                { id: 3, name: "面具四", url: "https://189729021.github.io/NuoMask/museum-3.html" },
-                { id: 4, name: "面具五", url: "https://189729021.github.io/NuoMask/museum-4.html" }
+                { id: 0, name: "羌姆金刚", url: "https://189729021.github.io/NuoMask/museum-0.html" },
+                { id: 1, name: "方相氏",   url: "https://189729021.github.io/NuoMask/museum-1.html" },
+                { id: 2, name: "湘东虎面", url: "https://189729021.github.io/NuoMask/museum-2.html" },
+                { id: 3, name: "开山",     url: "https://189729021.github.io/NuoMask/museum-3.html" },
+                { id: 4, name: "殷郊",     url: "https://189729021.github.io/NuoMask/museum-4.html" }
             ];
 
-            // 监听 5 个目标的识别状态
+            // 4. 目标识别与【防手抖】高阶动效绑定
             cardsData.forEach(card => {
                 const targetEl = document.querySelector(`#target-${card.id}`);
+                if (!targetEl) return;
                 
                 targetEl.addEventListener("targetFound", event => {
-                    scanPrompt.innerHTML = `已识别：${card.name}傩面具`; 
-                    scanBox.classList.add('scale-110', 'opacity-0');
-                    currentMuseumUrl = card.url; // 更新对应跳转链接
+                    // 清除丢失计时器（防闪烁关键）
+                    if (lostTimeout) clearTimeout(lostTimeout);
+
+                    scanPrompt.innerHTML = `<span class="text-amber-200 drop-shadow-md">目标锁定：${card.name}</span>`; 
+                    scanBox.classList.add('scale-125', 'border-amber-200', 'opacity-0');
+                    currentMuseumUrl = card.url; 
                     
                     setTimeout(() => {
-                        enterBtn.classList.remove('translate-y-10', 'opacity-0');
-                        enterBtn.classList.add('translate-y-0', 'opacity-100');
+                        enterBtn.classList.remove('translate-y-12', 'opacity-0', 'scale-90');
+                        enterBtn.classList.add('translate-y-0', 'opacity-100', 'scale-100');
                         enterBtn.style.pointerEvents = 'auto';
-                    }, 500);
+                    }, 300);
                 });
 
                 targetEl.addEventListener("targetLost", event => {
-                    enterBtn.classList.remove('translate-y-0', 'opacity-100');
-                    enterBtn.classList.add('translate-y-10', 'opacity-0');
-                    enterBtn.style.pointerEvents = 'none';
-                    scanPrompt.innerHTML = "请将镜头对准明信片正面";
-                    scanBox.classList.remove('scale-110', 'opacity-0');
+                    // 开启 1.5 秒宽限期，避免手抖导致按钮瞬间消失
+                    lostTimeout = setTimeout(() => {
+                        enterBtn.classList.remove('translate-y-0', 'opacity-100', 'scale-100');
+                        enterBtn.classList.add('translate-y-12', 'opacity-0', 'scale-90');
+                        enterBtn.style.pointerEvents = 'none';
+                        
+                        scanPrompt.innerHTML = "请将镜头对准明信片正面";
+                        scanBox.classList.remove('scale-125', 'border-amber-200', 'opacity-0');
+                        currentMuseumUrl = "";
+                    }, 1500); 
                 });
             });
 
-            // 点击按钮跳转
+            // 点击按钮跳转与交互反馈
             enterBtn.addEventListener('click', () => {
-                if(currentMuseumUrl) window.location.href = currentMuseumUrl;
+                if(currentMuseumUrl) {
+                    enterBtn.innerHTML = `
+                        <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        穿梭中...
+                    `;
+                    enterBtn.classList.add('opacity-80', 'scale-95');
+                    window.location.href = currentMuseumUrl;
+                }
             });
         });
     </script>
+
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Noto Sans SC', sans-serif; }
-        .scan-corner { width: 30px; height: 30px; border-color: rgba(253, 230, 138, 0.8); position: absolute; transition: all 0.5s ease; }
-        .corner-tl { border-top: 2px solid; border-left: 2px solid; top: 0; left: 0; }
-        .corner-tr { border-top: 2px solid; border-right: 2px solid; top: 0; right: 0; }
-        .corner-bl { border-bottom: 2px solid; border-left: 2px solid; bottom: 0; left: 0; }
-        .corner-br { border-bottom: 2px solid; border-right: 2px solid; bottom: 0; right: 0; }
-        @keyframes scan { 0% { top: 0; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+        body { margin: 0; overflow: hidden; background: #000; }
+        
+        /* 高级扫描框样式 */
+        .scan-corner { width: 40px; height: 40px; border-color: rgba(253, 230, 138, 0.6); position: absolute; transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1); }
+        .corner-tl { border-top: 2px solid; border-left: 2px solid; top: 0; left: 0; border-top-left-radius: 8px; }
+        .corner-tr { border-top: 2px solid; border-right: 2px solid; top: 0; right: 0; border-top-right-radius: 8px; }
+        .corner-bl { border-bottom: 2px solid; border-left: 2px solid; bottom: 0; left: 0; border-bottom-left-radius: 8px; }
+        .corner-br { border-bottom: 2px solid; border-right: 2px solid; bottom: 0; right: 0; border-bottom-right-radius: 8px; }
+        
+        #scan-box::after {
+            content: ''; position: absolute; inset: 0;
+            background: linear-gradient(to bottom, transparent 0%, rgba(253,230,138,0.1) 50%, transparent 100%);
+            background-size: 100% 200%;
+            animation: scan-grid 3s linear infinite;
+        }
+        @keyframes scan-grid { 0% { background-position: 0 -100%; } 100% { background-position: 0 200%; } }
+
+        .ar-pulse { width: 50px; height: 50px; border: 2px solid rgba(253, 230, 138, 0.3); border-radius: 50%; animation: arPulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes arPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0; transform: scale(1.6); } }
     </style>
 </head>
 <body>
-    <!-- UI 覆盖层 -->
-    <div class="absolute inset-0 z-50 pointer-events-none flex flex-col items-center justify-center p-6">
-        <div id="scan-box" class="relative w-64 h-80 transition-all duration-700 ease-in-out">
-            <div class="scan-corner corner-tl"></div><div class="scan-corner corner-tr"></div>
-            <div class="scan-corner corner-bl"></div><div class="scan-corner corner-br"></div>
-            <div class="absolute top-0 left-0 w-full h-[1px] bg-amber-200/50 shadow-[0_0_8px_#fde68a] animate-[scan_2.5s_ease-in-out_infinite]"></div>
-        </div>
-        <div id="scan-prompt" class="mt-8 text-amber-100/80 text-sm tracking-widest transition-opacity duration-500 bg-black/40 px-4 py-2 rounded-full backdrop-blur-sm border border-white/10">请将镜头对准明信片正面</div>
-        <button id="enter-btn" class="absolute bottom-16 px-8 py-3 bg-amber-900/80 border border-amber-200/50 text-amber-200 text-sm tracking-[0.2em] rounded-full shadow-[0_0_20px_rgba(253,230,138,0.2)] backdrop-blur-md transform translate-y-10 opacity-0 transition-all duration-700 pointer-events-none hover:bg-amber-800 hover:scale-105 active:scale-95">进入数字全息展厅</button>
+
+    <!-- 1. AR 引擎启动加载屏 -->
+    <div id="ar-loading" class="absolute inset-0 z-[60] bg-zinc-950 flex flex-col items-center justify-center transition-opacity duration-700">
+        <div class="ar-pulse mb-6"></div>
+        <h2 class="font-serif text-lg tracking-[0.3em] text-amber-100/90 mb-2">数字典藏视觉引擎</h2>
+        <p class="font-sans text-xs text-white/40 tracking-widest uppercase mt-2">Loading AR Matrix...</p>
     </div>
 
-    <!-- 核心 AR 场景：关联 targets.mind -->
-    <a-scene mindar-image="imageTargetSrc: https://cdn.jsdelivr.net/gh/189729021/-@main/targets.mind; autoStart: true;" 
+    <!-- 2. 定制化错误模态框 -->
+    <div id="error-modal" class="absolute inset-0 z-[70] bg-black/90 backdrop-blur-md hidden flex-col items-center justify-center p-8 transition-opacity">
+        <div class="w-16 h-16 rounded-full bg-red-900/30 flex items-center justify-center mb-6 border border-red-500/30">
+            <svg class="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+        </div>
+        <h3 class="font-serif text-xl text-white mb-4 tracking-widest">初始化失败</h3>
+        <p id="error-text" class="text-sm text-white/60 text-center font-sans leading-relaxed tracking-wide max-w-sm"></p>
+    </div>
+
+    <!-- 3. UI 交互覆盖层 -->
+    <div class="absolute inset-0 z-50 pointer-events-none flex flex-col items-center justify-center p-6">
+        
+        <div id="scan-box" class="relative w-64 h-80 transition-all duration-700 ease-out transform scale-100">
+            <div class="scan-corner corner-tl"></div><div class="scan-corner corner-tr"></div>
+            <div class="scan-corner corner-bl"></div><div class="scan-corner corner-br"></div>
+            <div class="absolute top-0 left-0 w-full h-[2px] bg-amber-200/80 shadow-[0_0_12px_#fde68a] animate-[scan_2s_ease-in-out_infinite]"></div>
+        </div>
+
+        <div id="scan-prompt" class="mt-8 text-amber-100/80 text-xs font-sans tracking-widest transition-colors duration-300 bg-black/50 px-5 py-2.5 rounded-full backdrop-blur-md border border-white/10 shadow-lg text-center">
+            正在启动空间扫描...
+        </div>
+
+        <button id="enter-btn" class="absolute bottom-20 px-10 py-4 bg-gradient-to-r from-amber-900/80 to-amber-800/80 border border-amber-300/40 text-amber-100 text-sm font-sans font-medium tracking-[0.2em] rounded-full shadow-[0_0_25px_rgba(253,230,138,0.25)] backdrop-blur-md transform translate-y-12 scale-90 opacity-0 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] pointer-events-none hover:bg-amber-700/80 hover:scale-105 active:scale-95 flex items-center justify-center gap-2">
+            进入专属展厅
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+        </button>
+    </div>
+
+    <!-- 4. 核心 AR 场景引擎 -->
+    <a-scene mindar-image="imageTargetSrc: https://cdn.jsdelivr.net/gh/189729021/-@main/targets.mind; autoStart: true; filterMinCF:0.0001; filterBeta: 0.001;" 
+             renderer="colorManagement: true; physicallyCorrectLights: true;"
              vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
         
-        <a-assets>
+        <!-- 资源管理器：增加超时机制，防止一直黑屏 -->
+        <a-assets timeout="15000">
             <!-- 预加载 5 个模型 -->
             <a-asset-item id="model0" src="https://cdn.jsdelivr.net/gh/189729021/-@main/model-0.glb"></a-asset-item>
             <a-asset-item id="model1" src="https://cdn.jsdelivr.net/gh/189729021/-@main/model-1.glb"></a-asset-item>
@@ -115,34 +216,33 @@
 
         <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-        <!-- 目标 0 (第一张明信片) -->
+        <!-- 统一的光影布局：使金线更加立体耀眼 -->
+        <a-light type="ambient" color="#fff4e6" intensity="1.2"></a-light>
+        <a-light type="directional" color="#ffeedd" intensity="2.5" position="0.5 1 1"></a-light>
+
+        <!-- 目标 0 (羌姆金刚) -->
         <a-entity id="target-0" mindar-image-target="targetIndex: 0">
-            <a-light type="ambient" color="#fff4e6" intensity="0.8"></a-light><a-light type="directional" color="#ffeedd" intensity="1.5" position="0.5 1 1"></a-light>
-            <a-gltf-model src="#model0" position="0 0 0.1" scale="0.08 0.08 0.08" rotation="90 0 0" ar-mask-effects animation="property: position; to: 0 0 0.3; dir: alternate; dur: 2000; loop: true; easing: easeInOutSine"></a-gltf-model>
+            <a-gltf-model src="#model0" position="0 0 0.1" scale="0.08 0.08 0.08" rotation="90 0 0" ar-mask-effects animation="property: position; to: 0 0 0.25; dir: alternate; dur: 2500; loop: true; easing: easeInOutSine"></a-gltf-model>
         </a-entity>
 
-        <!-- 目标 1 (第二张明信片) -->
+        <!-- 目标 1 (方相氏) -->
         <a-entity id="target-1" mindar-image-target="targetIndex: 1">
-            <a-light type="ambient" color="#fff4e6" intensity="0.8"></a-light><a-light type="directional" color="#ffeedd" intensity="1.5" position="0.5 1 1"></a-light>
-            <a-gltf-model src="#model1" position="0 0 0.1" scale="0.08 0.08 0.08" rotation="90 0 0" ar-mask-effects animation="property: position; to: 0 0 0.3; dir: alternate; dur: 2000; loop: true; easing: easeInOutSine"></a-gltf-model>
+            <a-gltf-model src="#model1" position="0 0 0.1" scale="0.08 0.08 0.08" rotation="90 0 0" ar-mask-effects animation="property: position; to: 0 0 0.25; dir: alternate; dur: 2500; loop: true; easing: easeInOutSine"></a-gltf-model>
         </a-entity>
 
-        <!-- 目标 2 (第三张明信片) -->
+        <!-- 目标 2 (湘东虎面) -->
         <a-entity id="target-2" mindar-image-target="targetIndex: 2">
-            <a-light type="ambient" color="#fff4e6" intensity="0.8"></a-light><a-light type="directional" color="#ffeedd" intensity="1.5" position="0.5 1 1"></a-light>
-            <a-gltf-model src="#model2" position="0 0 0.1" scale="0.08 0.08 0.08" rotation="90 0 0" ar-mask-effects animation="property: position; to: 0 0 0.3; dir: alternate; dur: 2000; loop: true; easing: easeInOutSine"></a-gltf-model>
+            <a-gltf-model src="#model2" position="0 0 0.1" scale="0.08 0.08 0.08" rotation="90 0 0" ar-mask-effects animation="property: position; to: 0 0 0.25; dir: alternate; dur: 2500; loop: true; easing: easeInOutSine"></a-gltf-model>
         </a-entity>
 
-        <!-- 目标 3 (第四张明信片) -->
+        <!-- 目标 3 (开山) -->
         <a-entity id="target-3" mindar-image-target="targetIndex: 3">
-            <a-light type="ambient" color="#fff4e6" intensity="0.8"></a-light><a-light type="directional" color="#ffeedd" intensity="1.5" position="0.5 1 1"></a-light>
-            <a-gltf-model src="#model3" position="0 0 0.1" scale="0.08 0.08 0.08" rotation="90 0 0" ar-mask-effects animation="property: position; to: 0 0 0.3; dir: alternate; dur: 2000; loop: true; easing: easeInOutSine"></a-gltf-model>
+            <a-gltf-model src="#model3" position="0 0 0.1" scale="0.08 0.08 0.08" rotation="90 0 0" ar-mask-effects animation="property: position; to: 0 0 0.25; dir: alternate; dur: 2500; loop: true; easing: easeInOutSine"></a-gltf-model>
         </a-entity>
 
-        <!-- 目标 4 (第五张明信片) -->
+        <!-- 目标 4 (殷郊) -->
         <a-entity id="target-4" mindar-image-target="targetIndex: 4">
-            <a-light type="ambient" color="#fff4e6" intensity="0.8"></a-light><a-light type="directional" color="#ffeedd" intensity="1.5" position="0.5 1 1"></a-light>
-            <a-gltf-model src="#model4" position="0 0 0.1" scale="0.08 0.08 0.08" rotation="90 0 0" ar-mask-effects animation="property: position; to: 0 0 0.3; dir: alternate; dur: 2000; loop: true; easing: easeInOutSine"></a-gltf-model>
+            <a-gltf-model src="#model4" position="0 0 0.1" scale="0.08 0.08 0.08" rotation="90 0 0" ar-mask-effects animation="property: position; to: 0 0 0.25; dir: alternate; dur: 2500; loop: true; easing: easeInOutSine"></a-gltf-model>
         </a-entity>
         
     </a-scene>
