@@ -42,14 +42,13 @@
             // 当前要跳转的展厅链接
             let currentMuseumUrl = "";
 
-            // 配置 5 张明信片数据 (名称和跳转链接)
-            // 请确保这里的 url 指向你 GitHub 上的真实文件路径
+            // 配置 5 张明信片数据 (真实名称已更新)
             const cardsData = [
                 { id: 0, name: "开山", url: "https://189729021.github.io/NuoMask/museum-0.html" },
-                { id: 1, name: "威德金刚", url: "https://189729021.github.io/NuoMask/museum-1.html" },
-                { id: 2, name: "面具三", url: "https://189729021.github.io/NuoMask/museum-2.html" }, // 修改这里的名称
-                { id: 3, name: "面具四", url: "https://189729021.github.io/NuoMask/museum-3.html" }, // 修改这里的名称
-                { id: 4, name: "面具五", url: "https://189729021.github.io/NuoMask/museum-4.html" }  // 修改这里的名称
+                { id: 1, name: "羌姆金刚", url: "https://189729021.github.io/NuoMask/museum-1.html" },
+                { id: 2, name: "方相氏", url: "https://189729021.github.io/NuoMask/museum-2.html" },
+                { id: 3, name: "湘东虎面", url: "https://189729021.github.io/NuoMask/museum-3.html" },
+                { id: 4, name: "殷郊", url: "https://189729021.github.io/NuoMask/museum-4.html" }
             ];
 
             // 监听 5 个目标的识别状态
@@ -58,7 +57,7 @@
                 if (!targetEl) return;
                 
                 targetEl.addEventListener("targetFound", event => {
-                    scanPrompt.innerHTML = `已识别：${card.name}`; 
+                    scanPrompt.innerHTML = `已识别：${card.name}面具`; 
                     scanBox.classList.add('scale-110', 'opacity-0');
                     currentMuseumUrl = card.url; // 更新对应跳转链接
                     
@@ -112,7 +111,7 @@
              vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
         
         <a-assets>
-            <!-- 预加载 5 个模型，请确保这5个模型都已经上传到了 GitHub -->
+            <!-- 预加载 5 个模型 -->
             <a-asset-item id="model0" src="https://cdn.jsdelivr.net/gh/189729021/-@main/model-0.glb"></a-asset-item>
             <a-asset-item id="model1" src="https://cdn.jsdelivr.net/gh/189729021/-@main/model-1.glb"></a-asset-item>
             <a-asset-item id="model2" src="https://cdn.jsdelivr.net/gh/189729021/-@main/model-2.glb"></a-asset-item>
@@ -122,31 +121,31 @@
 
         <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-        <!-- 目标 0 (第一张明信片: 开山) -->
+        <!-- 目标 0 (开山) -->
         <a-entity id="target-0" mindar-image-target="targetIndex: 0">
             <a-light type="ambient" color="#fff4e6" intensity="0.8"></a-light><a-light type="directional" color="#ffeedd" intensity="1.5" position="0.5 1 1"></a-light>
             <a-gltf-model src="#model0" position="0 0 0.1" scale="0.08 0.08 0.08" rotation="90 0 0" ar-mask-effects animation="property: position; to: 0 0 0.3; dir: alternate; dur: 2000; loop: true; easing: easeInOutSine"></a-gltf-model>
         </a-entity>
 
-        <!-- 目标 1 (第二张明信片: 威德金刚) -->
+        <!-- 目标 1 (羌姆金刚) -->
         <a-entity id="target-1" mindar-image-target="targetIndex: 1">
             <a-light type="ambient" color="#fff4e6" intensity="0.8"></a-light><a-light type="directional" color="#ffeedd" intensity="1.5" position="0.5 1 1"></a-light>
             <a-gltf-model src="#model1" position="0 0 0.1" scale="0.08 0.08 0.08" rotation="90 0 0" ar-mask-effects animation="property: position; to: 0 0 0.3; dir: alternate; dur: 2000; loop: true; easing: easeInOutSine"></a-gltf-model>
         </a-entity>
 
-        <!-- 目标 2 (第三张明信片) -->
+        <!-- 目标 2 (方相氏) -->
         <a-entity id="target-2" mindar-image-target="targetIndex: 2">
             <a-light type="ambient" color="#fff4e6" intensity="0.8"></a-light><a-light type="directional" color="#ffeedd" intensity="1.5" position="0.5 1 1"></a-light>
             <a-gltf-model src="#model2" position="0 0 0.1" scale="0.08 0.08 0.08" rotation="90 0 0" ar-mask-effects animation="property: position; to: 0 0 0.3; dir: alternate; dur: 2000; loop: true; easing: easeInOutSine"></a-gltf-model>
         </a-entity>
 
-        <!-- 目标 3 (第四张明信片) -->
+        <!-- 目标 3 (湘东虎面) -->
         <a-entity id="target-3" mindar-image-target="targetIndex: 3">
             <a-light type="ambient" color="#fff4e6" intensity="0.8"></a-light><a-light type="directional" color="#ffeedd" intensity="1.5" position="0.5 1 1"></a-light>
             <a-gltf-model src="#model3" position="0 0 0.1" scale="0.08 0.08 0.08" rotation="90 0 0" ar-mask-effects animation="property: position; to: 0 0 0.3; dir: alternate; dur: 2000; loop: true; easing: easeInOutSine"></a-gltf-model>
         </a-entity>
 
-        <!-- 目标 4 (第五张明信片) -->
+        <!-- 目标 4 (殷郊) -->
         <a-entity id="target-4" mindar-image-target="targetIndex: 4">
             <a-light type="ambient" color="#fff4e6" intensity="0.8"></a-light><a-light type="directional" color="#ffeedd" intensity="1.5" position="0.5 1 1"></a-light>
             <a-gltf-model src="#model4" position="0 0 0.1" scale="0.08 0.08 0.08" rotation="90 0 0" ar-mask-effects animation="property: position; to: 0 0 0.3; dir: alternate; dur: 2000; loop: true; easing: easeInOutSine"></a-gltf-model>
