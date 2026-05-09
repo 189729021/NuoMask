@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>开山 - AR数字明信片</title>
+    
+    <!-- 引入 Tailwind CSS 用于界面排版 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 引入 A-Frame 和 MindAR (WebAR 核心库)，已替换为更稳定的官方发布版 -->
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { amber: { 100: '#fef3c7', 200: '#fde68a', 900: '#78350f' } }
+                }
+            }
+        }
+
+        // 自定义 A-Frame 组件：为模型添加海报同款的“参数化线稿”发光效果
+        AFRAME.registerComponent('ar-mask-effects', {
+            init: function () {
+                this.el.addEventListener('model-loaded', () => {
+                    const obj = this.el.getObject3D('mesh');
+                    obj.traverse((child) => {
+                        if (child.isMesh) {
+                            // 提取边缘线框 (参数 30 代表相邻面法线夹角大于30度才画线，保持线条清爽)
+                            const edges = new THREE.EdgesGeometry(child.geometry, 30);
+                            const lineMat = new THREE.LineBasicMaterial({
+                                color: 0xfde68a, // 琥珀金线稿
+                                transparent: true,
+                                opacity: 0.9,
+                                blending: THREE.AdditiveBlending,
+                                depthWrite: false
+                            });
+                            const lines = new THREE.LineSegments(edges, lineMat);
+                            child.add(lines);
+                            
+                            // 调暗原模型材质，突出线稿发光质感
+                            child.material.transparent = true;
+                            child.material.opacity = 0.8;
+                            child.material.color = new THREE.Color(0x111111);
+                        }
+                    });
+                });
+            }
+        });
+
+        // UI 交互逻辑
+        document.addEventListener("DOMContentLoaded", function() {
+            const scene = document.querySelector('a-scene');
+            const target = document.querySelector('#image-target');
+            const enterBtn = document.querySelector('#enter-btn');
+            const scanPrompt = document.querySelector('#scan-prompt');
+            const scanBox = document.querySelector('#scan-box');
+            const loadingScreen = document.querySelector('#loading-screen');
+
+            // 监听 AR 引擎准备完毕事件，隐藏加载屏
+            scene.addEventListener("arReady", () => {
+                loadingScreen.classList.add('opacity-0');
+                setTimeout(() => {
+                    loadingScreen.style.display = 'none';
+                }, 1000);
+            });
+
+            const maskModel = document.querySelector('#mask-model');
+
+            // 当摄像头识别到明信片时触发
+            target.addEventListener("targetFound", event => {
+                scanPrompt.classList.add('opacity-0');
+                scanBox.classList.add('scale-110', 'opacity-0');
+                
+                // 触发面具“弹现”的登场动画
+                maskModel.setAttribute('animation__scale', 'property: scale; from: 0 0 0; to: 0.08 0.08 0.08; dur: 1000; easing: easeOutElastic');
+
+                setTimeout(() => {
+                    enterBtn.classList.remove('translate-y-10', 'opacity-0');
+                    enterBtn.classList.add('translate-y-0', 'opacity-100');
+                    enterBtn.style.pointerEvents = 'auto';
+                }, 500);
+            });
+
+            // 当明信片移出镜头时触发
+            target.addEventListener("targetLost", event => {
+                enterBtn.classList.remove('translate-y-0', 'opacity-100');
+                enterBtn.classList.add('translate-y-10', 'opacity-0');
+                enterBtn.style.pointerEvents = 'none';
+                
+                scanPrompt.classList.remove('opacity-0');
+                scanBox.classList.remove('scale-110', 'opacity-0');
+
+                // 触发面具迅速收回的动画
+                maskModel.setAttribute('animation__scale', 'property: scale; to: 0 0 0; dur: 300; easing: easeOutQuad');
+            });
+
+            // 点击进入按钮跳转
+            enterBtn.addEventListener('click', () => {
+                const museumUrl = "museum.html"; 
+                window.location.href = museumUrl;
+            });
+        });
+    </script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Noto Sans SC', sans-serif; }
+        /* 扫描框动画 */
+        .scan-corner { width: 30px; height: 30px; border-color: rgba(253, 230, 138, 0.8); position: absolute; transition: all 0.5s ease; }
+        .corner-tl { border-top: 2px solid; border-left: 2px solid; top: 0; left: 0; }
+        .corner-tr { border-top: 2px solid; border-right: 2px solid; top: 0; right: 0; }
+        .corner-bl { border-bottom: 2px solid; border-left: 2px solid; bottom: 0; left: 0; }
+        .corner-br { border-bottom: 2px solid; border-right: 2px solid; bottom: 0; right: 0; }
+        @keyframes scan {
+            0% { top: 0; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+        
+        /* 优化后的全息扫描线光效 */
+        .scan-line {
+            background: linear-gradient(to right, transparent, rgba(253, 230, 138, 0.9), transparent);
+            box-shadow: 0 2px 15px rgba(253, 230, 138, 0.6);
+        }
+        
+        /* 适配手机安全区域 (刘海屏/底部横条防遮挡) */
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+    </style>
+</head>
+<body>
+
+    <!-- 移动端加载屏 (AR引擎初始化需要几秒，用此过渡避免手机端卡顿感) -->
+    <div id="loading-screen" class="absolute inset-0 z-[100] bg-black flex flex-col items-center justify-center transition-opacity duration-1000 pointer-events-none">
+        <div class="w-10 h-10 border-4 border-amber-200/20 border-t-amber-200 rounded-full animate-spin mb-5"></div>
+        <p class="text-amber-100/60 text-xs tracking-[0.2em] font-light">正在开启 AR 视觉引擎...</p>
+    </div>
+
+    <!-- UI 覆盖层：扫描框与按钮 -->
+    <div class="absolute inset-0 z-50 pointer-events-none flex flex-col items-center justify-center p-6 safe-bottom">
+        
+        <!-- 扫描提示动画框 (修改为相对视口的响应式尺寸，完美适配各种手机屏幕比例) -->
+        <div id="scan-box" class="relative w-[75vw] max-w-[320px] aspect-[5/8] transition-all duration-700 ease-in-out">
+            <div class="scan-corner corner-tl"></div>
+            <div class="scan-corner corner-tr"></div>
+            <div class="scan-corner corner-bl"></div>
+            <div class="scan-corner corner-br"></div>
+            
+            <!-- 扫描线循环动画：应用了更科幻的 scan-line 样式 -->
+            <div class="absolute top-0 left-0 w-full h-[2px] scan-line animate-[scan_2.5s_ease-in-out_infinite]"></div>
+        </div>
+
+        <div id="scan-prompt" class="mt-8 text-amber-100/80 text-xs md:text-sm tracking-widest transition-opacity duration-500 bg-black/40 px-6 py-2.5 rounded-full backdrop-blur-md border border-white/10">
+            请将手机镜头对准《开山》明信片正面
+        </div>
+
+        <!-- 悬浮跳转按钮 (默认隐藏，识别成功后弹出。增加底边距适配) -->
+        <button id="enter-btn" class="absolute bottom-12 md:bottom-16 px-8 py-3.5 bg-amber-900/90 border border-amber-200/50 text-amber-200 text-sm tracking-[0.2em] rounded-full shadow-[0_0_20px_rgba(253,230,138,0.2)] backdrop-blur-md transform translate-y-10 opacity-0 transition-all duration-700 pointer-events-none hover:bg-amber-800 active:scale-95">
+            进入数字全息展厅
+        </button>
+    </div>
+
+    <!-- AR 场景配置 -->
+    <!-- 【优化】加入 filterMinCF 和 filterBeta 参数，增强图像追踪的稳定性，减少抖动 -->
+    <a-scene mindar-image="imageTargetSrc: https://cdn.jsdelivr.net/gh/189729021/-@main/targets.mind; autoStart: true; filterMinCF: 0.0001; filterBeta: 0.001;" 
+             color-space="sRGB" 
+             renderer="colorManagement: true; physicallyCorrectLights: true;" 
+             vr-mode-ui="enabled: false" 
+             device-orientation-permission-ui="enabled: false">
+        
+        <a-assets>
+            <!-- 引用你 Github 仓库中的 3D 傩面具模型 -->
+            <a-asset-item id="nuoModel" src="https://cdn.jsdelivr.net/gh/189729021/-@main/nuo-v1.glb"></a-asset-item>
+        </a-assets>
+
+        <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+        <!-- 图像追踪目标容器 -->
+        <a-entity id="image-target" mindar-image-target="targetIndex: 0">
+            
+            <!-- 打光设计，让金线稿更有质感 -->
+            <a-light type="ambient" color="#fff4e6" intensity="0.8"></a-light>
+            <a-light type="directional" color="#ffeedd" intensity="1.5" position="0.5 1 1"></a-light>
+            
+            <!-- 傩面具 3D 模型渲染节点 -->
+            <!-- 【优化】初始 scale 设为 0，添加自转动画 (animation__rotate) -->
+            <a-gltf-model id="mask-model"
+                          src="#nuoModel" 
+                          position="0 0 0.1" 
+                          scale="0 0 0" 
+                          rotation="90 0 0"
+                          ar-mask-effects
+                          animation__float="property: position; to: 0 0 0.3; dir: alternate; dur: 2000; loop: true; easing: easeInOutSine"
+                          animation__rotate="property: rotation; to: 90 360 0; dur: 12000; loop: true; easing: linear">
+            </a-gltf-model>
+            
+        </a-entity>
+        
+    </a-scene>
+
+</body>
+</html>
