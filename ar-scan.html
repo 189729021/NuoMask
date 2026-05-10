@@ -22,7 +22,7 @@
             }
         }
 
-        // 参数化线稿材质组件
+        // 参数化线稿材质组件：为所有面具附加海报级“全息金线”特效
         AFRAME.registerComponent('ar-mask-effects', {
             init: function () {
                 this.el.addEventListener('model-loaded', () => {
@@ -52,14 +52,13 @@
             const scanPrompt = document.querySelector('#scan-prompt');
             const scanBox = document.querySelector('#scan-box');
             const loadingScreen = document.querySelector('#ar-loading');
-            const loadingText = document.querySelector('#loading-text');
             const errorModal = document.querySelector('#error-modal');
             const errorText = document.querySelector('#error-text');
             
             // 1. 底层安全环境预检 (HTTPS 校验)
             const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
             if (!window.isSecureContext && !isLocalhost) {
-                showError("环境受限：AR 扫描必须在安全的 HTTPS 网络下运行。<br><br>请将代码部署至 GitHub Pages 并使用安全的链接访问。");
+                showError("环境受限：AR 扫描必须在安全的 HTTPS 网络下运行。<br><br>请确保你是通过 https://189729021.github.io/NuoMask/ar-scan.html 访问的本页面。");
             }
 
             function showError(msg) {
@@ -71,32 +70,20 @@
                 scanBox.style.display = 'none';
             }
 
-            // 2. 监听引擎就绪状态与超时诊断
+            // 2. 引擎就绪：移除了 3D 模型预加载，现在相机将会瞬间启动！
             const sceneEl = document.querySelector('a-scene');
-            
-            // 超时检测：如果 12 秒后 arReady 还没触发，说明模型或 mind 文件 404 了
-            const timeoutCheck = setTimeout(() => {
-                if(loadingScreen.style.display !== 'none') {
-                    loadingText.innerHTML = "加载异常缓慢，请检查网络或刷新页面重试...";
-                    loadingText.classList.replace("text-white/40", "text-red-400");
-                }
-            }, 12000);
-
             sceneEl.addEventListener('arReady', () => {
-                clearTimeout(timeoutCheck);
                 loadingScreen.style.opacity = '0';
                 setTimeout(() => loadingScreen.style.display = 'none', 800);
             });
-
             sceneEl.addEventListener('arError', () => {
-                clearTimeout(timeoutCheck);
-                showError("相机启动失败！<br><br>原因可能为：<br>1. 未授予浏览器摄像头权限<br>2. 请检查系统设置。");
+                showError("相机启动失败！<br><br>原因可能为：<br>1. 未授予浏览器/微信摄像头权限<br>2. 请检查手机系统设置并重试。");
             });
             
             let currentMuseumUrl = "";
             let lostTimeout = null; 
 
-            // 3. 核心明信片数据
+            // 3. 核心明信片数据与对应展厅配置
             const cardsData = [
                 { id: 0, name: "羌姆金刚", url: "https://189729021.github.io/NuoMask/museum-0.html" },
                 { id: 1, name: "方相氏",   url: "https://189729021.github.io/NuoMask/museum-1.html" },
@@ -105,44 +92,76 @@
                 { id: 4, name: "殷郊",     url: "https://189729021.github.io/NuoMask/museum-4.html" }
             ];
 
-            // 4. 目标识别事件
+            // 按钮浮现逻辑
+            const showEnterButton = () => {
+                setTimeout(() => {
+                    enterBtn.classList.remove('translate-y-12', 'opacity-0', 'scale-90');
+                    enterBtn.classList.add('translate-y-0', 'opacity-100', 'scale-100');
+                    enterBtn.style.pointerEvents = 'auto';
+                }, 300);
+            };
+
+            // 4. 【极速优化】目标识别与按需动态加载模型
             cardsData.forEach(card => {
                 const targetEl = document.querySelector(`#target-${card.id}`);
                 if (!targetEl) return;
                 
                 targetEl.addEventListener("targetFound", event => {
                     if (lostTimeout) clearTimeout(lostTimeout);
-
-                    scanPrompt.innerHTML = `<span class="text-amber-200 drop-shadow-md">目标锁定：${card.name}</span>`; 
-                    scanBox.classList.add('scale-125', 'border-amber-200', 'opacity-0');
+                    scanBox.classList.add('scale-125', 'opacity-0');
                     currentMuseumUrl = card.url; 
-                    
-                    setTimeout(() => {
-                        enterBtn.classList.remove('translate-y-12', 'opacity-0', 'scale-90');
-                        enterBtn.classList.add('translate-y-0', 'opacity-100', 'scale-100');
-                        enterBtn.style.pointerEvents = 'auto';
-                    }, 300);
+
+                    // 检查该目标是否已经加载过对应的 3D 模型
+                    if (!targetEl.hasAttribute('data-model-loaded')) {
+                        // 首次识别：动态创建并加载模型
+                        scanPrompt.innerHTML = `<span class="text-amber-200 drop-shadow-md animate-pulse">正在提取 ${card.name} 全息数据...</span>`; 
+                        
+                        const modelEl = document.createElement('a-gltf-model');
+                        modelEl.setAttribute('src', `https://cdn.jsdelivr.net/gh/189729021/nuomoxing@main/model-${card.id}.glb`);
+                        modelEl.setAttribute('position', '0 0 0.1');
+                        modelEl.setAttribute('scale', '0.08 0.08 0.08');
+                        modelEl.setAttribute('rotation', '90 0 0');
+                        modelEl.setAttribute('ar-mask-effects', '');
+                        modelEl.setAttribute('animation', 'property: position; to: 0 0 0.25; dir: alternate; dur: 2500; loop: true; easing: easeInOutSine');
+                        
+                        // 监听模型加载完成事件
+                        modelEl.addEventListener('model-loaded', () => {
+                            scanPrompt.innerHTML = `<span class="text-amber-200 drop-shadow-md">目标锁定：${card.name}</span>`; 
+                            showEnterButton();
+                        });
+
+                        targetEl.appendChild(modelEl);
+                        targetEl.setAttribute('data-model-loaded', 'true');
+                    } else {
+                        // 非首次识别：直接显示
+                        scanPrompt.innerHTML = `<span class="text-amber-200 drop-shadow-md">目标锁定：${card.name}</span>`; 
+                        showEnterButton();
+                    }
                 });
 
                 targetEl.addEventListener("targetLost", event => {
+                    // 1.5 秒防抖宽限期
                     lostTimeout = setTimeout(() => {
                         enterBtn.classList.remove('translate-y-0', 'opacity-100', 'scale-100');
                         enterBtn.classList.add('translate-y-12', 'opacity-0', 'scale-90');
                         enterBtn.style.pointerEvents = 'none';
                         
                         scanPrompt.innerHTML = "请将镜头对准明信片正面";
-                        scanBox.classList.remove('scale-125', 'border-amber-200', 'opacity-0');
+                        scanBox.classList.remove('scale-125', 'opacity-0');
                         currentMuseumUrl = "";
                     }, 1500); 
                 });
             });
 
-            // 跳转
+            // 跳转交互优化
             enterBtn.addEventListener('click', () => {
                 if(currentMuseumUrl) {
-                    enterBtn.innerHTML = "穿梭中...";
+                    enterBtn.innerHTML = `
+                        <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        正在进入展厅...
+                    `;
                     enterBtn.classList.add('opacity-80', 'scale-95');
-                    window.location.href = currentMuseumUrl;
+                    setTimeout(() => { window.location.href = currentMuseumUrl; }, 400);
                 }
             });
         });
@@ -150,7 +169,6 @@
 
     <style>
         body { margin: 0; overflow: hidden; background: #000; }
-        
         .scan-corner { width: 40px; height: 40px; border-color: rgba(253, 230, 138, 0.6); position: absolute; transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1); }
         .corner-tl { border-top: 2px solid; border-left: 2px solid; top: 0; left: 0; border-top-left-radius: 8px; }
         .corner-tr { border-top: 2px solid; border-right: 2px solid; top: 0; right: 0; border-top-right-radius: 8px; }
@@ -160,8 +178,7 @@
         #scan-box::after {
             content: ''; position: absolute; inset: 0;
             background: linear-gradient(to bottom, transparent 0%, rgba(253,230,138,0.1) 50%, transparent 100%);
-            background-size: 100% 200%;
-            animation: scan-grid 3s linear infinite;
+            background-size: 100% 200%; animation: scan-grid 3s linear infinite;
         }
         @keyframes scan-grid { 0% { background-position: 0 -100%; } 100% { background-position: 0 200%; } }
 
@@ -171,11 +188,11 @@
 </head>
 <body>
 
-    <!-- AR 引擎启动加载屏 -->
+    <!-- AR 引擎启动加载屏 (由于移除了模型预载，这个屏幕现在会一闪而过) -->
     <div id="ar-loading" class="absolute inset-0 z-[60] bg-zinc-950 flex flex-col items-center justify-center transition-opacity duration-700">
         <div class="ar-pulse mb-6"></div>
         <h2 class="font-serif text-lg tracking-[0.3em] text-amber-100/90 mb-2">数字典藏视觉引擎</h2>
-        <p id="loading-text" class="font-sans text-xs text-white/40 tracking-widest text-center mt-2 px-8 leading-relaxed">Loading AR Matrix...</p>
+        <p class="font-sans text-xs text-white/40 tracking-widest text-center mt-2 px-8 leading-relaxed">Initializing AR Camera...</p>
     </div>
 
     <!-- 错误模态框 -->
@@ -204,53 +221,21 @@
         </button>
     </div>
 
-    <!-- ============================================== -->
-    <!-- 完美的资源分离链接： -->
-    <!-- targets.mind 在 [-] 仓库 -->
-    <!-- models       在 [nuomoxing] 仓库 -->
-    <!-- ============================================== -->
+    <!-- 彻底删除臃肿的 a-assets，直接进入引擎状态 -->
     <a-scene mindar-image="imageTargetSrc: https://cdn.jsdelivr.net/gh/189729021/-@main/targets.mind; autoStart: true; filterMinCF:0.0001; filterBeta: 0.001;" 
              renderer="colorManagement: true; physicallyCorrectLights: true;"
              vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
         
-        <a-assets timeout="15000">
-            <!-- 5个模型文件从 nuomoxing 仓库读取 -->
-            <a-asset-item id="model0" src="https://cdn.jsdelivr.net/gh/189729021/nuomoxing@main/model-0.glb"></a-asset-item>
-            <a-asset-item id="model1" src="https://cdn.jsdelivr.net/gh/189729021/nuomoxing@main/model-1.glb"></a-asset-item>
-            <a-asset-item id="model2" src="https://cdn.jsdelivr.net/gh/189729021/nuomoxing@main/model-2.glb"></a-asset-item>
-            <a-asset-item id="model3" src="https://cdn.jsdelivr.net/gh/189729021/nuomoxing@main/model-3.glb"></a-asset-item>
-            <a-asset-item id="model4" src="https://cdn.jsdelivr.net/gh/189729021/nuomoxing@main/model-4.glb"></a-asset-item>
-        </a-assets>
-
         <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-
         <a-light type="ambient" color="#fff4e6" intensity="1.2"></a-light>
         <a-light type="directional" color="#ffeedd" intensity="2.5" position="0.5 1 1"></a-light>
 
-        <!-- 目标 0 (羌姆金刚) -->
-        <a-entity id="target-0" mindar-image-target="targetIndex: 0">
-            <a-gltf-model src="#model0" position="0 0 0.1" scale="0.08 0.08 0.08" rotation="90 0 0" ar-mask-effects animation="property: position; to: 0 0 0.25; dir: alternate; dur: 2500; loop: true; easing: easeInOutSine"></a-gltf-model>
-        </a-entity>
-
-        <!-- 目标 1 (方相氏) -->
-        <a-entity id="target-1" mindar-image-target="targetIndex: 1">
-            <a-gltf-model src="#model1" position="0 0 0.1" scale="0.08 0.08 0.08" rotation="90 0 0" ar-mask-effects animation="property: position; to: 0 0 0.25; dir: alternate; dur: 2500; loop: true; easing: easeInOutSine"></a-gltf-model>
-        </a-entity>
-
-        <!-- 目标 2 (湘东虎面) -->
-        <a-entity id="target-2" mindar-image-target="targetIndex: 2">
-            <a-gltf-model src="#model2" position="0 0 0.1" scale="0.08 0.08 0.08" rotation="90 0 0" ar-mask-effects animation="property: position; to: 0 0 0.25; dir: alternate; dur: 2500; loop: true; easing: easeInOutSine"></a-gltf-model>
-        </a-entity>
-
-        <!-- 目标 3 (开山) -->
-        <a-entity id="target-3" mindar-image-target="targetIndex: 3">
-            <a-gltf-model src="#model3" position="0 0 0.1" scale="0.08 0.08 0.08" rotation="90 0 0" ar-mask-effects animation="property: position; to: 0 0 0.25; dir: alternate; dur: 2500; loop: true; easing: easeInOutSine"></a-gltf-model>
-        </a-entity>
-
-        <!-- 目标 4 (殷郊) -->
-        <a-entity id="target-4" mindar-image-target="targetIndex: 4">
-            <a-gltf-model src="#model4" position="0 0 0.1" scale="0.08 0.08 0.08" rotation="90 0 0" ar-mask-effects animation="property: position; to: 0 0 0.25; dir: alternate; dur: 2500; loop: true; easing: easeInOutSine"></a-gltf-model>
-        </a-entity>
+        <!-- 纯净的追踪挂载点（内部为空，模型通过JS按需注入） -->
+        <a-entity id="target-0" mindar-image-target="targetIndex: 0"></a-entity>
+        <a-entity id="target-1" mindar-image-target="targetIndex: 1"></a-entity>
+        <a-entity id="target-2" mindar-image-target="targetIndex: 2"></a-entity>
+        <a-entity id="target-3" mindar-image-target="targetIndex: 3"></a-entity>
+        <a-entity id="target-4" mindar-image-target="targetIndex: 4"></a-entity>
         
     </a-scene>
 </body>
